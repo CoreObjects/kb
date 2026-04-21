@@ -1,0 +1,662 @@
+# 知识库接口文档 v2.4
+
+## 说明
+
+基于当前 v2.4 工程实际 controller、request DTO、response DTO 整理。
+
+统一前缀：`/api`
+
+统一错误返回：
+
+```json
+{
+  "error": "BAD_REQUEST",
+  "message": "具体错误信息"
+}
+```
+
+或：
+
+```json
+{
+  "error": "INTERNAL_SERVER_ERROR",
+  "message": "具体错误信息"
+}
+```
+
+---
+
+## 1. 文档导入与查看
+
+### 1.1 导入文档
+
+**POST** `/api/documents/import`
+
+请求体：
+
+```json
+{
+  "documentType": "MARKDOWN",
+  "title": "示例文档",
+  "sourceUri": "file:///tmp/demo.md",
+  "content": "# 标题\n正文内容",
+  "ontologyKey": "RELOC"
+}
+```
+
+字段说明：
+- `documentType`：必填，支持 `PLAIN_TEXT` / `MARKDOWN` / `HTML`
+- `title`：必填，文档标题
+- `sourceUri`：可选，来源地址
+- `content`：必填，文档正文
+- `ontologyKey`：可选，导入后立即执行 segment -> ontology 挂接
+
+返回：
+
+```json
+{
+  "documentId": "DOC_xxx",
+  "segmentCount": 18,
+  "ontologyLinkCount": 6,
+  "status": "IMPORTED"
+}
+```
+
+---
+
+### 1.2 重建某文档的 ontology 挂接
+
+**POST** `/api/documents/{documentId}/ontology-links/rebuild?ontologyKey={ontologyKey}`
+
+示例：
+
+`/api/documents/DOC_xxx/ontology-links/rebuild?ontologyKey=RELOC`
+
+返回：
+
+```json
+{
+  "documentId": "DOC_xxx",
+  "ontologyKey": "RELOC",
+  "ontologyLinkCount": 12,
+  "status": "RELINKED"
+}
+```
+
+---
+
+### 1.3 查询文档列表
+
+**GET** `/api/documents`
+
+返回：
+
+```json
+[
+  {
+    "documentId": "DOC_xxx",
+    "documentType": "MARKDOWN",
+    "title": "示例文档",
+    "status": "IMPORTED",
+    "createdAt": "2026-04-21 10:00:00"
+  }
+]
+```
+
+---
+
+### 1.4 查询某文档的切片列表
+
+**GET** `/api/documents/{documentId}/segments`
+
+返回：
+
+```json
+[
+  {
+    "segmentId": "SEG_xxx",
+    "title": "步骤一",
+    "content": "正文内容",
+    "segmentType": "PARAGRAPH",
+    "path": "/1/2",
+    "orderNo": 12
+  }
+]
+```
+
+---
+
+## 2. 本体导入与查看
+
+### 2.1 导入本体
+
+**POST** `/api/ontology/import`
+
+请求体：
+
+```json
+{
+  "ontologyKey": "RELOC",
+  "ontologyName": "机房搬迁本体",
+  "version": "2.4",
+  "description": "示例本体",
+  "replaceExisting": true,
+  "types": [
+    {
+      "typeKey": "method.engineering",
+      "typeName": "工程操作方法",
+      "description": "方法类型",
+      "parentTypeKey": null,
+      "sortNo": 1
+    }
+  ],
+  "nodes": [
+    {
+      "nodeKey": "method.engineering.ring_insertion",
+      "name": "环插方法",
+      "typeKey": "method.engineering",
+      "description": "环插操作方法",
+      "aliases": ["光层环插"]
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeKey": "method.engineering.ring_insertion",
+      "targetNodeKey": "condition.selection.ring_insertion_feasible",
+      "relationType": "requires",
+      "description": "需要满足条件",
+      "bidirectional": false
+    }
+  ]
+}
+```
+
+返回：
+
+```json
+{
+  "ontologyId": "OG_xxx",
+  "ontologyKey": "RELOC",
+  "typeCount": 8,
+  "nodeCount": 42,
+  "aliasCount": 17,
+  "edgeCount": 56,
+  "status": "IMPORTED"
+}
+```
+
+说明：
+- `replaceExisting=true` 时，若同 key 本体已存在，会覆盖旧版本。
+
+---
+
+### 2.2 查询本体列表
+
+**GET** `/api/ontology`
+
+返回：
+
+```json
+[
+  {
+    "ontologyId": "OG_xxx",
+    "ontologyKey": "RELOC",
+    "ontologyName": "机房搬迁本体",
+    "version": "2.4",
+    "description": "示例本体"
+  }
+]
+```
+
+---
+
+### 2.3 查询本体类型列表
+
+**GET** `/api/ontology/{ontologyKey}/types`
+
+返回：
+
+```json
+[
+  {
+    "typeId": "OT_xxx",
+    "typeKey": "method.engineering",
+    "typeName": "工程操作方法",
+    "description": "方法类型",
+    "parentTypeId": null,
+    "parentTypeKey": null,
+    "sortNo": 1
+  }
+]
+```
+
+---
+
+### 2.4 搜索本体节点
+
+**GET** `/api/ontology/{ontologyKey}/nodes/search?q={keyword}`
+
+示例：
+
+`/api/ontology/RELOC/nodes/search?q=环插`
+
+返回：
+
+```json
+[
+  {
+    "nodeId": "ONODE_xxx",
+    "nodeKey": "method.engineering.ring_insertion",
+    "name": "环插方法",
+    "typeKey": "method.engineering",
+    "typeName": "工程操作方法",
+    "description": "环插操作方法"
+  }
+]
+```
+
+---
+
+### 2.5 查询节点详情
+
+**GET** `/api/ontology/{ontologyKey}/nodes/{nodeKey}`
+
+返回：
+
+```json
+{
+  "nodeId": "ONODE_xxx",
+  "nodeKey": "method.engineering.ring_insertion",
+  "name": "环插方法",
+  "typeId": "OT_xxx",
+  "typeKey": "method.engineering",
+  "typeName": "工程操作方法",
+  "description": "环插操作方法"
+}
+```
+
+---
+
+### 2.6 查询节点别名
+
+**GET** `/api/ontology/{ontologyKey}/nodes/{nodeKey}/aliases`
+
+返回：
+
+```json
+[
+  {
+    "aliasId": "OA_xxx",
+    "alias": "光层环插",
+    "normalizedAlias": "光层环插"
+  }
+]
+```
+
+---
+
+### 2.7 查询节点边
+
+**GET** `/api/ontology/{ontologyKey}/nodes/{nodeKey}/edges`
+
+返回：
+
+```json
+[
+  {
+    "edgeId": "OE_xxx",
+    "relationType": "requires",
+    "direction": "OUTGOING",
+    "otherNodeId": "ONODE_yyy",
+    "otherNodeKey": "condition.selection.ring_insertion_feasible",
+    "otherNodeName": "环插可行条件",
+    "description": "需要满足条件"
+  }
+]
+```
+
+---
+
+### 2.8 查询某节点的证据 segment
+
+**GET** `/api/ontology/{ontologyKey}/nodes/{nodeKey}/evidence`
+
+返回：
+
+```json
+[
+  {
+    "linkId": "SOL_xxx",
+    "segmentId": "SEG_xxx",
+    "nodeId": "ONODE_xxx",
+    "nodeKey": "method.engineering.ring_insertion",
+    "nodeName": "环插方法",
+    "typeKey": "method.engineering",
+    "typeName": "工程操作方法",
+    "relationType": "SUPPORTS",
+    "matchMethod": "ALIAS",
+    "segmentRole": "CONFIG_STEP",
+    "confidence": 0.9,
+    "evidenceText": "进行光层环插",
+    "llmUsed": false,
+    "llmModel": null,
+    "llmReason": null
+  }
+]
+```
+
+---
+
+## 3. segment 结构与挂接查看
+
+### 3.1 查询某 segment 的关系
+
+**GET** `/api/segments/{segmentId}/relations`
+
+返回：
+
+```json
+[
+  {
+    "relationId": "SR_xxx",
+    "relationType": "BELONGS_TO_SECTION",
+    "relationLayer": "STRUCTURAL",
+    "direction": "OUTGOING",
+    "relatedSegmentId": "SEG_parent",
+    "relatedSegmentType": "SECTION",
+    "relatedTitle": "步骤一",
+    "relatedContent": "步骤一内容",
+    "rankNo": 1
+  }
+]
+```
+
+---
+
+### 3.2 查询某 segment 的上下文
+
+**GET** `/api/segments/{segmentId}/context`
+
+返回：
+
+```json
+{
+  "segmentId": "SEG_xxx",
+  "segmentType": "PARAGRAPH",
+  "title": "步骤一",
+  "content": "正文内容",
+  "sectionSegmentId": "SEG_section",
+  "sectionTitle": "步骤一",
+  "previousSegmentId": "SEG_prev",
+  "previousContent": "前一个 segment",
+  "nextSegmentId": "SEG_next",
+  "nextContent": "后一个 segment",
+  "siblingSegmentIds": ["SEG_a", "SEG_b"]
+}
+```
+
+---
+
+### 3.3 查询某 segment 的 ontology 挂接
+
+**GET** `/api/segments/{segmentId}/ontology-links`
+
+返回：
+
+```json
+[
+  {
+    "linkId": "SOL_xxx",
+    "segmentId": "SEG_xxx",
+    "nodeId": "ONODE_xxx",
+    "nodeKey": "method.engineering.ring_insertion",
+    "nodeName": "环插方法",
+    "typeKey": "method.engineering",
+    "typeName": "工程操作方法",
+    "relationType": "SUPPORTS",
+    "matchMethod": "ALIAS",
+    "segmentRole": "CONFIG_STEP",
+    "confidence": 0.9,
+    "evidenceText": "进行光层环插",
+    "llmUsed": false,
+    "llmModel": null,
+    "llmReason": null
+  }
+]
+```
+
+---
+
+## 4. 检索接口
+
+### 4.1 旧版文本检索
+
+**POST** `/api/search`
+
+请求体：
+
+```json
+{
+  "query": "环插",
+  "topK": 10
+}
+```
+
+说明：
+- `topK` 可选，默认 10
+
+返回：
+
+```json
+{
+  "query": "环插",
+  "hits": [
+    {
+      "segmentId": "SEG_xxx",
+      "documentId": "DOC_xxx",
+      "title": "步骤一",
+      "content": "进行光层环插",
+      "score": 10.8,
+      "orderNo": 12,
+      "previousSegmentTitle": "前一段内容",
+      "nextSegmentTitle": "后一段内容"
+    }
+  ]
+}
+```
+
+---
+
+### 4.2 ontology 驱动检索（主检索接口）
+
+**POST** `/api/retrieval/search`
+
+请求体：
+
+```json
+{
+  "ontologyKey": "RELOC",
+  "query": "光层环插前需要做哪些准备",
+  "topK": 5
+}
+```
+
+说明：
+- `ontologyKey` 必填
+- `query` 必填
+- `topK` 可选，默认 5
+
+返回结构：
+
+```json
+{
+  "query": "光层环插前需要做哪些准备",
+  "normalizedQuery": "光层环插前需要做哪些准备",
+  "queryType": "OPERATION",
+  "queryTypeSource": "RULE",
+  "queryNodeLlmUsed": false,
+  "vectorUsed": true,
+  "targetRoles": ["CONFIG_STEP", "CAUTION", "EXAMPLE"],
+  "primaryNode": {
+    "nodeId": "ONODE_xxx",
+    "nodeKey": "method.engineering.ring_insertion",
+    "name": "环插方法",
+    "typeKey": "method.engineering",
+    "typeName": "工程操作方法",
+    "score": 1.12,
+    "matchMethod": "STANDARD_NAME",
+    "primary": true,
+    "vectorScore": 0.84,
+    "llmUsed": false,
+    "llmReason": null
+  },
+  "secondaryNodes": [],
+  "evidencePacks": [
+    {
+      "node": {
+        "nodeId": "ONODE_xxx",
+        "nodeKey": "method.engineering.ring_insertion",
+        "name": "环插方法",
+        "typeKey": "method.engineering",
+        "typeName": "工程操作方法",
+        "score": 1.12,
+        "matchMethod": "STANDARD_NAME",
+        "primary": false,
+        "vectorScore": null,
+        "llmUsed": null,
+        "llmReason": null
+      },
+      "confidence": 0.93,
+      "coreSegments": [
+        {
+          "segmentId": "SEG_xxx",
+          "segmentType": "PARAGRAPH",
+          "title": "步骤一",
+          "content": "核心证据内容",
+          "sectionTitle": "步骤一",
+          "segmentRole": "CONFIG_STEP",
+          "matchMethod": "ALIAS",
+          "linkConfidence": 0.9,
+          "finalScore": 0.93,
+          "source": "NODE",
+          "vectorScore": 0.0,
+          "previousSegmentId": "SEG_prev",
+          "previousContent": "前一段",
+          "nextSegmentId": "SEG_next",
+          "nextContent": "后一段",
+          "expansionRelationType": null,
+          "expansionDirection": null
+        }
+      ],
+      "expandedSegments": [],
+      "contextSegments": [],
+      "neighborNodes": []
+    }
+  ]
+}
+```
+
+字段说明：
+- `queryType`：`DEFINITION / OPERATION / CONDITION / IMPACT / RELATION`
+- `targetRoles`：本次 query 预期的证据角色
+- `primaryNode / secondaryNodes`：query 命中的 ontology node
+- `coreSegments`：核心证据
+- `expandedSegments`：基于 segment relation 扩展出来的关联证据
+- `contextSegments`：上下文补充
+- `neighborNodes`：相邻 ontology node
+
+---
+
+## 5. 索引接口
+
+### 5.1 重建文档索引
+
+**POST** `/api/indexes/document/{documentId}/rebuild`
+
+返回：
+
+```json
+{
+  "targetType": "DOCUMENT",
+  "targetId": "DOC_xxx",
+  "segmentFtsCount": 18,
+  "ontologyNodeFtsCount": null,
+  "ontologyAliasFtsCount": null,
+  "ontologyTermCount": null,
+  "status": "REBUILT"
+}
+```
+
+---
+
+### 5.2 重建 ontology 索引
+
+**POST** `/api/indexes/ontology/{ontologyKey}/rebuild`
+
+返回：
+
+```json
+{
+  "targetType": "ONTOLOGY",
+  "targetId": "RELOC",
+  "segmentFtsCount": null,
+  "ontologyNodeFtsCount": 42,
+  "ontologyAliasFtsCount": 17,
+  "ontologyTermCount": 96,
+  "status": "REBUILT"
+}
+```
+
+---
+
+## 6. 向量索引接口
+
+### 6.1 重建 ontology 向量索引
+
+**POST** `/api/vector-index/ontology/{ontologyKey}/rebuild`
+
+返回：
+
+```json
+{
+  "scope": "ONTOLOGY",
+  "targetId": "RELOC",
+  "indexedCount": 42,
+  "status": "REBUILT"
+}
+```
+
+---
+
+### 6.2 重建文档向量索引
+
+**POST** `/api/vector-index/document/{documentId}/rebuild`
+
+返回：
+
+```json
+{
+  "scope": "DOCUMENT",
+  "targetId": "DOC_xxx",
+  "indexedCount": 18,
+  "status": "REBUILT"
+}
+```
+
+---
+
+## 7. 常见调用顺序
+
+### 7.1 新文档接入
+1. 导入 ontology：`POST /api/ontology/import`
+2. 导入 document：`POST /api/documents/import`
+3. 必要时重建索引：
+   - `POST /api/indexes/document/{documentId}/rebuild`
+   - `POST /api/vector-index/document/{documentId}/rebuild`
+4. 检索：`POST /api/retrieval/search`
+
+### 7.2 老数据补索引
+1. `POST /api/indexes/ontology/{ontologyKey}/rebuild`
+2. `POST /api/indexes/document/{documentId}/rebuild`
+3. `POST /api/vector-index/ontology/{ontologyKey}/rebuild`
+4. `POST /api/vector-index/document/{documentId}/rebuild`
