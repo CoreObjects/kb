@@ -2,82 +2,151 @@
 
 代码仓：CodeHub · NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace（master 分支）
 系统简介：以主机入侵告警为入口，基于图数据库（Nebula Graph）对进程/主机/文件/命令/会话等实体做多跳关联溯源，构建以"锚点"为中心的攻击链路树（AnchorTree），并集成大模型（LLM）完成自动化安全研判与防御加固建议生成。
-
-自评总分：100 / 100
-- 软件设计：30 / 30
-- 代码开发：40 / 40
-- 软件工程：20 / 20
-- 其他：10 / 10
+说明：每条优点均附一条 CodeHub 源码链接，审查人可逐条点击/复制核验。
 
 ==================================================
-一、软件设计 —— 30 / 30
+一、软件设计
+自评得分：30 分
 ==================================================
 
-技术/组件选型：进程、主机、文件、命令、会话等实体统一建模为图节点，选用 Nebula 图数据库承载实体-关系模型，使溯源天然转化为"多跳图遍历"，直接提升产品性能与架构竞争力。
+1. 技术/组件选型：进程、主机、文件、命令、会话等实体统一建模为图节点，选用 Nebula 图数据库承载实体-关系模型，使溯源天然转化为"多跳图遍历"，相较关系型库在多跳关联上具备数量级优势，直接提升产品性能与架构竞争力。
 举证：model/node/Process.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fmodel%2Fnode%2FProcess.java&isFile=true
 
-代码设计：编码前完成组件级设计，工厂、适配器、建造者、策略、分发、依赖倒置等设计模式按需落地、无过度设计；静态工厂 fromNodePairs(...) 将边集适配为锚点树，内部封装根推导、环检测、多父识别。
+2. 代码设计 - 工厂模式 + 适配器模式：静态工厂 fromNodePairs(...) 将"边集（NodePair）"适配为"树结构（AnchorTree）"，内部封装零入度根推导、resolveAnchor 锚点推导、环检测、多父识别。
 举证：analysis/AnchorTreeFactory.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fanalysis%2FAnchorTreeFactory.java&isFile=true
 
-设计工具：以实体-关系（E-R）/UML 类图思想组织 analysis 包类协作（Factory→Builder→Tree→Labeler），核心算法编码前完成数据结构与切片流程建模（设计说明见类 JavaDoc）。
+3. 代码设计 - 建造者模式（标准 GoF 实现）：静态 builder() 入口 + 内部 Builder 类，链式装配数据源、生成选项与标签策略。
+举证：dto/response/TraceResultBuilder.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fdto%2Fresponse%2FTraceResultBuilder.java&isFile=true
+
+4. 代码设计 - 策略模式 + 接口可插拔兜底：标签生成策略接口 + 多实现（VidOnlyLabeler / PidPathCmdlineOrVidLabeler），labeler 为空时自动兜底。
+举证：analysis/NodeLabeler.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fanalysis%2FNodeLabeler.java&isFile=true
+
+5. 代码设计 - 分发 + 公共能力下沉：按 eventTypeId 分发到各事件构建器，注释明确"避免单类承担过多职责"，共性逻辑统一抽出。
+举证：dto/gtslog/GtsLogNebulaDataBuilder.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fdto%2Fgtslog%2FGtsLogNebulaDataBuilder.java&isFile=true
+
+6. 代码设计 - 接口与实现分离、依赖倒置：上层依赖抽象，便于替换底层模型平台或存储实现。
+举证：llm/LLMClient.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fllm%2FLLMClient.java&isFile=true
+
+7. 设计工具：以实体-关系（E-R）/UML 类图思想组织 analysis 包类协作（Factory→Builder→Tree→Labeler），核心算法编码前完成数据结构与切片流程建模（设计说明见类 JavaDoc）。
 举证：analysis/AnchorTreeBuilder.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fanalysis%2FAnchorTreeBuilder.java&isFile=true
 
-AI 辅助软件设计：将 LLM 研判设计为完整闭环（结构化输入组装 → 抽象调用 → 结构化结论约束），把 AI 能力沉淀进系统架构。
+8. AI 辅助软件设计：将 LLM 研判设计为完整闭环（结构化输入组装 → 抽象调用 → 结构化结论约束），把 AI 能力沉淀进系统架构。
 举证：llm/UserPromptAssembler.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fllm%2FUserPromptAssembler.java&isFile=true
 
 ==================================================
-二、代码开发 —— 40 / 40
+二、代码开发
+自评得分：40 分
 ==================================================
 
-代码实现：图算法成体系、数据结构选型精准——并查集（Union-Find）求弱连通分量、BFS 做有向可达性分析、DFS+三色标记做环检测；ASCII 树渲染用迭代式 DFS（显式栈帧）主动规避深图递归 StackOverflowError，全面践行 SOLID。
+1. 代码实现 - 并查集（Union-Find，内部类 UnionFind）求弱连通分量，近线性复杂度，用于攻击子图切分。
 举证：utils/ConnectedComponents.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2FConnectedComponents.java&isFile=true
 
-CleanCode：函数功能单一、重复率低、对外接口收敛——泛型 Result<T> 统一返回（私有构造 + 静态工厂 + @JsonInclude(NON_NULL)），全局异常统一治理，对外集合返回不可变防御性副本。
+2. 代码实现 - BFS（ArrayDeque 队列）做有向前向可达性分析与多根切分。
+举证：utils/DirectedReachability.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2FDirectedReachability.java&isFile=true
+
+3. 代码实现 - 有向森林，支持多父节点、环检测、根到叶路径枚举。
+举证：analysis/NodeDirectedForest.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fanalysis%2FNodeDirectedForest.java&isFile=true
+
+4. 代码实现 - 迭代式 DFS（显式栈帧模拟递归）渲染 ASCII 树，主动规避深图递归 StackOverflowError；切片引入深度/节点数预算与截断标记，对超大图可控降级。
+举证：analysis/AnchorTree.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fanalysis%2FAnchorTree.java&isFile=true
+
+5. CleanCode - 统一返回封装：泛型 Result<T> + 私有构造 + 静态工厂（success()/fail()）+ @JsonInclude(NON_NULL)。
 举证：dto/response/Result.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fdto%2Fresponse%2FResult.java&isFile=true
 
-代码检视：积极主动参与检视活动，提出高价值检视意见并给出修改建议——半年内在全部门代码仓累计提出 74 条检视意见，覆盖接口抽象、公共逻辑下沉、魔法值常量化、反射缓存等可落地改进。
+6. CleanCode - 统一异常治理：业务异常 + @RestControllerAdvice 全局拦截，错误出口单一。
+举证：exception/BaseExceptionHandler.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fexception%2FBaseExceptionHandler.java&isFile=true
 
-代码重构：主动消减重复、沉淀公共能力——节点按 vidString 统一去重与字段合并（含同类型校验、保序去重、冲突抛异常），纯工具类统一私有构造禁止实例化。
+7. CleanCode - 常量与映射集中：消除魔法值；不可变表 + 静态 get 兜底，线程安全。
+举证：common/LinkStatusMapper.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fcommon%2FLinkStatusMapper.java&isFile=true
+
+8. CleanCode - 职责按"提取/聚合/渲染"拆分，每个类只做一件事；对外集合返回不可变防御性副本（unmodifiableSetCopy / unmodifiableMapOfSets）。
+举证：utils/timebuilder/TimelineExtractor.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2Ftimebuilder%2FTimelineExtractor.java&isFile=true
+
+9. 代码检视：积极主动参与检视活动，提出高价值检视意见并给出修改建议——半年内在全部门代码仓累计提出 74 条检视意见，覆盖接口抽象、公共逻辑下沉、魔法值常量化、反射缓存等可落地改进。
+
+10. 代码重构 - 公共能力沉淀复用：节点按 vidString 统一去重与字段合并（含同类型校验、保序去重、冲突抛 BaseException）。
 举证：utils/BaseNodeMergeUtil.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2FBaseNodeMergeUtil.java&isFile=true
 
-开发者测试：实现期即为可测试性做设计——接口与实现分离便于 Mock（离线即可测），核心算法为输入显式、无隐藏全局态的纯静态方法，便于覆盖空集/环/多父/超深度截断等边界。
+11. 代码重构 - 图元展示抽象为可复用 Labeler 策略族，多处树/图共用，消除展示逻辑重复。
+举证：utils/graphToString/GraphItemLabeler.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2FgraphToString%2FGraphItemLabeler.java&isFile=true
+
+12. 代码重构 - 抑制腐化点：把易膨胀的事件分发共性逻辑抽离为独立支撑类，避免上帝类。
+举证：dto/gtslog/GtsLogNebulaBuildSupport.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fdto%2Fgtslog%2FGtsLogNebulaBuildSupport.java&isFile=true
+
+13. 开发者测试 - 接口与实现分离便于 Mock（Fast/Isolated），依赖外部模型服务的研判逻辑可注入桩实现，离线即可测。
 举证：llm/LLMClient.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fllm%2FLLMClient.java&isFile=true
 
-AI 辅助软件编码：图遍历/并查集/树渲染等算法实现、样板代码、JavaDoc、提示词工程均借助 AI 提效，并把 AI 能力沉淀进产品（自动研判），形成"AI 提效研发 + AI 赋能产品"双重价值。
+14. 开发者测试 - 核心算法为输入显式、无隐藏全局态的纯静态方法，便于覆盖空集/null脏边/单节点/环/多父/超深度截断等边界（满足 FIRST、Right-BICEP、CORRECT）。
+举证：utils/ConnectedComponents.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2FConnectedComponents.java&isFile=true
+
+15. AI 辅助软件编码：图遍历/并查集/树渲染等算法实现、样板代码、JavaDoc、提示词工程均借助 AI 提效，并把 AI 能力沉淀进产品（自动研判）。
 举证：llm/PromptProvider.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fllm%2FPromptProvider.java&isFile=true
 
 ==================================================
-三、软件工程 —— 20 / 20
+三、软件工程
+自评得分：20 分
 ==================================================
 
-团队基础软件工程能力：统一的分层规约、返回/异常/常量规约、命名与包结构约定，可作为团队可复制的工程模板，提升团队研发一致性与效率。
+1. 团队基础软件工程能力：统一的分层规约、返回/异常/常量规约、命名与包结构约定，可作为团队可复制的工程模板，提升团队研发一致性与效率。
 举证：exception/BaseExceptionHandler.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fexception%2FBaseExceptionHandler.java&isFile=true
 
-自研工具解决团队单点问题：沉淀图结构可视化、多源事件统一时间线、图数据入库前清洗去重、内网模型 HTTP 封装等可复用"准工具"，具备跨场景推广价值。
+2. 自研工具 - 图结构可视化为 ASCII / 结构化对象，显著降低图数据排障成本。
 举证：utils/graphToString/GraphItemLabeler.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2FgraphToString%2FGraphItemLabeler.java&isFile=true
 
-AI 友好型资产建设：固化专家经验为版本化 system prompt 资产并启动期加载缓存；以结构化输入裁剪（LLM 上下文防腐层）+ 注解约束结构化输出，显著提升 AI 生成确定性。
+3. 自研工具 - 多源事件统一时间线编排，便于攻击行为按时间还原。
+举证：utils/timebuilder/TimelineExtractor.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2Ftimebuilder%2FTimelineExtractor.java&isFile=true
+
+4. 自研工具 - 内网模型服务调用统一 HTTP 封装。
+举证：utils/HttpUtilSkipSsl.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Futils%2FHttpUtilSkipSsl.java&isFile=true
+
+5. AI 友好型资产建设 - 版本化 system prompt 资产，启动期一次性加载并缓存，支持版本演进，固化研判专家经验为可治理资产。
+举证：llm/PromptProvider.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fllm%2FPromptProvider.java&isFile=true
+
+6. AI 友好型资产建设 - 结构化输出约束：以注解约束模型输出字段并容错未知字段，显著提升 AI 生成确定性与可消费性。
 举证：dto/llm/JudgementResult.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fdto%2Fllm%2FJudgementResult.java&isFile=true
 
 ==================================================
-四、其他 —— 10 / 10
+四、其他
+自评得分：10 分
 ==================================================
 
-加分项：形成"图溯源 + LLM 自动研判"端到端优秀实践，可作为安全领域 AI 应用对标案例；锚点树切片、有向可达性、并查集连通分量等算法实现完整、通用且具教学价值，适合总结为团队技术案例/赋能分享。减分项：严格遵守编码底线要求，无违反项。
+1. 加分项 - 形成"图溯源 + LLM 自动研判"端到端优秀实践，可作为安全领域 AI 应用对标案例。
+举证：llm/UserPromptAssembler.java
+https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fllm%2FUserPromptAssembler.java&isFile=true
+
+2. 加分项 - 锚点树切片、有向可达性、并查集连通分量等算法实现完整、通用且具教学价值，适合总结为团队技术案例/赋能分享。
 举证：analysis/AnchorTreeBuilder.java
 https://codehub-y.huawei.com/NIS_Pre-Research/NIS_Common/Data_and_AI/NetResourceEngine/SecAttackTrace/files?ref=master&filePath=src%2Fmain%2Fjava%2Fcom%2Fhuawei%2Fnetlive%2Fsecattacktrace%2Fanalysis%2FAnchorTreeBuilder.java&isFile=true
+
+3. 减分项：严格遵守编码底线要求，无违反项。
 
 ==================================================
 本自评所有结论均以仓库实际代码为依据，附 CodeHub 链接，审查人可逐条核验。
